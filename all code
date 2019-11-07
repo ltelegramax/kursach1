@@ -1,0 +1,1117 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace SvyatKP.Design
+{
+    /// <summary>
+    /// Логика взаимодействия для AddAnswers.xaml
+    /// </summary>
+    public partial class AddAnswers : Page
+    {
+        Window win;
+        Source.Question qst;
+
+        List<CheckBox> listCheckBox;
+        List<TextBox> listTextBox;
+
+        public AddAnswers(Window window, Source.Question question, int count)
+        {
+            qst = question;
+            win = window;
+            InitializeComponent();
+
+            listCheckBox = new List<CheckBox>();
+            listTextBox = new List<TextBox>();
+
+            for (var x = 0; x < count; x++)
+            {
+                stackPanel.Children.Add(new Label()
+                {
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Content = $"Ответ {x + 1}",
+                    FontSize = 14,
+                    Margin = new Thickness(0, 0, 0, 10),
+                    FontFamily = new FontFamily("Segoe")
+                });
+                var textBox = new TextBox()
+                {
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Width = 250,
+                    Height = 50,
+                    Margin = new Thickness(0, 0, 0, 10)
+                };
+                var checkBox = new CheckBox()
+                {
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Width = 250,
+                    Content = $"Вопрос правильный",
+                    Height = 25,
+                    Margin = new Thickness(0, 0, 0, 20)
+                };
+
+                stackPanel.Children.Add(textBox);
+                stackPanel.Children.Add(checkBox);
+
+                listTextBox.Add(textBox);
+                listCheckBox.Add(checkBox);
+            }
+        }
+        public void ToMenu(object sender, RoutedEventArgs e)
+        {
+            win.Content = new EditorMenu(win);
+        }
+        public void Insert(object sender, RoutedEventArgs e)
+        {
+            using (var ctx = new Source.ApplicationContext())
+            {
+                ctx.Questions.Add(qst);
+                ctx.SaveChanges();
+                qst = ctx.Questions.First(t => t.Description == qst.Description);
+
+                for (var x = 0; x < listCheckBox.Count; x++)
+                {
+                    var answer = new Source.Answer()
+                    {
+                        QuestionId = qst.Id,
+                        Description = listTextBox[x].Text,
+                        IsTrue = (bool)listCheckBox[x].IsChecked
+                    };
+                    ctx.Answers.Add(answer);
+                }
+
+                ctx.SaveChanges();
+                ToMenu(null, null);
+            }
+        }
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace SvyatKP.Design
+{
+    /// <summary>
+    /// Логика взаимодействия для AddQuestion.xaml
+    /// </summary>
+    public partial class AddQuestion : Page
+    {
+        Source.Picture picture = new Source.Picture();
+        Source.Question question = new Source.Question();
+        Window win;
+
+        public AddQuestion(Window win)
+        {
+            this.win = win;
+            InitializeComponent();
+
+            using (var context = new Source.ApplicationContext())
+            {
+                foreach (var x in context.Themes)
+                    comboBox.Items.Add(x.Name);
+            }
+        }
+
+        public void AddPicture(object sender, RoutedEventArgs args)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog();
+            dialog.FileName = "Изображение";
+            dialog.DefaultExt = ".jpg";
+
+            var result = dialog.ShowDialog();
+            string filename = null;
+            if (result == true)
+                filename = dialog.FileName;
+
+            picture.Path = null;
+            if (!string.IsNullOrEmpty(filename))
+            {
+                var b = new BitmapImage();
+                b.BeginInit();
+                b.UriSource = new Uri(filename);
+                b.EndInit();
+
+                pictureBox.Source = b;
+
+                picture.Path = filename;
+            }
+        }
+        public void Insert(object sender, RoutedEventArgs args)
+        {
+            if (picture.Path != "" && DescriptionBox.Text != "")
+            {
+                question.Description = DescriptionBox.Text;
+                using (var ctx = new Source.ApplicationContext())
+                {
+                    if (comboBox.Text != null)
+                    {
+                        ctx.Pictures.Add(picture);
+                        ctx.SaveChanges();
+                        var picId = ctx.Pictures.First(p => p.Path == picture.Path).Id;
+
+                        question.ThemeId = ctx.Themes.First(t => t.Name == comboBox.Text).Id;
+                        question.PictureId = picId;
+                        var count = Int32.Parse(CountAnswers.Text);
+                        win.Content = new AddAnswers(win, question, count);
+                    }
+                    else
+                    {
+                        var task = new Task(() => MessageBox.Show("Выберите тему"));
+                        task.Start();
+                    }
+                }
+            }
+            else
+            {
+                var task = new Task(() => MessageBox.Show("Введите данные повторно!"));
+                task.Start();
+            }   
+        }
+        public void ToMenu(object sender, RoutedEventArgs e)
+        {
+            win.Content = new EditorMenu(win);
+        }
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace SvyatKP.Design
+{
+    /// <summary>
+    /// Логика взаимодействия для AddTheme.xaml
+    /// </summary>
+    public partial class AddTheme : Page
+    {
+        Window window;
+        Source.Theme theme = new Source.Theme();
+        Source.Picture picture = new Source.Picture();
+
+        public AddTheme(Window window)
+        {
+            this.window = window;
+            InitializeComponent();
+
+            DescriptionBox.TextWrapping = TextWrapping.Wrap;
+            DescriptionBox.AcceptsReturn = true;
+        }
+
+        public void AddPicture(object sender, RoutedEventArgs args)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog();
+            dialog.FileName = "Изображение";
+            dialog.DefaultExt = ".jpg";
+
+            var result = dialog.ShowDialog();
+            string filename = null;
+            if (result == true)
+                filename = dialog.FileName;
+
+            picture.Path = null;
+            if (!string.IsNullOrEmpty(filename))
+            {
+                var b = new BitmapImage();
+                b.BeginInit();
+                b.UriSource = new Uri(filename);
+                b.EndInit();
+
+                pictureBox.Source = b;
+
+                picture.Path = filename;
+            }
+        }
+        public void Insert(object sender, RoutedEventArgs args)
+        {
+            theme.Description = DescriptionBox.Text;
+            theme.Name = nameTheme.Text;
+
+            if (picture.Path == null)
+            {
+                var task = new Task(() => MessageBox.Show("Картинка отсутствует"));
+                task.Start();
+                return;
+            }
+
+            using (var context = new Source.ApplicationContext())
+            {
+                context.Pictures.Add(picture);
+                context.SaveChanges();
+                var pic = context.Pictures.First(p => p.Path == picture.Path);
+                theme.PictureId = pic.Id;
+                context.Themes.Add(theme);
+                context.SaveChanges();
+            }
+
+            ToMenu();
+        }
+        public void ToMenu(object sender = null, RoutedEventArgs args = null)
+        {
+            window.Content = new EditorMenu(window);
+        }
+
+        private void nameTheme_TextChanged(object sender, TextChangedEventArgs e)
+        {
+
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+        window.Content = new EditorMenu(window);
+        }
+
+        private void Button_Click_1(object sender, RoutedEventArgs e)
+        {
+            window.Content = new EditorMenu(window);
+        }
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace SvyatKP.Design
+{
+    /// <summary>
+    /// Логика взаимодействия для AnswerToQuestion.xaml
+    /// </summary>
+    public partial class AnswerToQuestion : Page
+    {
+        Window win;
+        List<Source.Question> qst;
+        int ptr;
+        int count;
+
+        public AnswerToQuestion(Window window, List<Source.Question> questions, int ptr, int countTrue = 0)
+        {
+            this.win = window;
+            this.qst = questions;
+            this.ptr = ptr;
+            this.count = countTrue;
+
+            InitializeComponent();
+
+            description.IsReadOnly = true;
+            description.BorderBrush = Brushes.White;
+            description.TextWrapping = TextWrapping.Wrap;
+            description.AcceptsReturn = true;
+            description.Text = questions[ptr].Description;
+
+            using (var context = new Source.ApplicationContext())
+            {
+                var b = new BitmapImage();
+                b.BeginInit();
+                b.UriSource = new Uri(context.Pictures.First(p => p.Id == questions[ptr].PictureId).Path);
+                b.EndInit();
+                picture.Source = b;
+
+                foreach (var x in context.Answers.Where(a => a.QuestionId == qst[ptr].Id))
+                {
+                    var button = new Button()
+                    {
+                        Width = 250,
+                        Height = 50,
+                        Content = $"{x.Description}"
+                    };
+
+                    stack.Children.Add(button);
+
+                    button.Click += (e, args) =>
+                    {
+                        using (var ctx = new Source.ApplicationContext())
+                        {
+                            if (ctx.Answers.First(a => a.Description == ((e as Button).Content as string)).IsTrue)
+                                count++;
+                            ptr++;
+
+                            if (ptr == questions.Count)
+                                win.Content = new Endgame(win, count, qst.Count);
+                            else
+                                win.Content = new AnswerToQuestion(win, qst, ptr, count);
+                        }
+                    };
+                }
+            }
+        }
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace SvyatKP.Design
+{
+    /// <summary>
+    /// Логика взаимодействия для DeleteQuestion.xaml
+    /// </summary>
+    public partial class DeleteQuestion : Page
+    {
+        Window win;
+        public DeleteQuestion(Window win)
+        {
+            this.win = win;
+            InitializeComponent();
+
+            using (var context = new Source.ApplicationContext())
+            {
+                foreach (var x in context.Questions)
+                {
+                    var button = new Button()
+                    {
+                        Width = 250,
+                        Height = 50,
+                        Content = x.Description,
+                        Margin = new Thickness(0, 10, 0, 0),
+                        HorizontalAlignment = HorizontalAlignment.Center
+                    };
+                    stackPanel.Children.Add(button);
+
+                    button.Click += (e, args) =>
+                    {
+                        using (var ctx = new Source.ApplicationContext())
+                        {
+                            var qst = ctx.Questions.First(q => q.Description == ((e as Button).Content as string));
+                            ctx.Answers.RemoveRange(ctx.Answers.Where(a => a.QuestionId == qst.Id).ToList());
+                            ctx.Questions.Remove(qst);
+                            ctx.SaveChanges();
+                            ToMenu(null, null);
+                        }
+                    };
+                }
+            }
+        }
+        public void ToMenu(object sender, RoutedEventArgs e)
+        {
+            win.Content = new EditorMenu(win);
+        }
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace SvyatKP.Design
+{
+    /// <summary>
+    /// Логика взаимодействия для DeleteTheme.xaml
+    /// </summary>
+    public partial class DeleteTheme : Page
+    {
+        Window window;
+        public DeleteTheme(Window window)
+        {
+            this.window = window;
+            InitializeComponent();
+
+            using (var context = new Source.ApplicationContext())
+            {
+                foreach (var x in context.Themes)
+                {
+                    var button = new Button()
+                    {
+                        Width = 250,
+                        Height = 25,
+                        Margin = new Thickness(0, 10, 0, 0),
+                        Content = $"{x.Name}",
+                        HorizontalAlignment = HorizontalAlignment.Center
+                    };
+                    stackPanel.Children.Add(button);
+
+                    button.Click += (e, args) =>
+                    {
+                        using (var ctx = new Source.ApplicationContext())
+                        {
+                            ctx.Themes.Remove(ctx.Themes.First(t => t.Name == ((e as Button).Content as string)));
+                            ctx.SaveChanges();
+                            ToMenu();
+                        }
+                    };
+                }
+            }
+        }
+
+        public void ToMenu(object sender = null, RoutedEventArgs args = null)
+        {
+            window.Content = new EditorMenu(window);
+        }
+    }
+}
+
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+
+namespace SvyatKP.Design
+{
+    /// <summary>
+    /// Логика взаимодействия для EditorLogin.xaml
+    /// </summary>
+    public partial class EditorLogin : Page
+    {
+        Window window;
+
+        public EditorLogin(Window window)
+        {
+            this.window = window;
+            InitializeComponent();
+        }
+
+        private void LogIn(object sender, RoutedEventArgs e)
+        {
+            if (passwortTextBox.Text == "ДОНЕР" && surnameTextBox.Text == "ПАПА")
+                window.Content = new EditorMenu(window);
+            else
+                MessageBox.Show("Данные не совпадают");
+        }
+        private void ToMenu(object sender, RoutedEventArgs e)
+        {
+            window.Content = new MainMenu(window);
+        }
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+
+namespace SvyatKP.Design
+{
+    /// <summary>
+    /// Логика взаимодействия для EditorMenu.xaml
+    /// </summary>
+    public partial class EditorMenu : Page
+    {
+        Window window;
+
+        public EditorMenu(Window window)
+        {
+            this.window = window;
+            InitializeComponent();
+        }
+
+        private void ToMainMenu(object sender, RoutedEventArgs e)
+        {
+            window.Content = new MainMenu(window);
+        }
+        private void ToAddTheme(object sender, RoutedEventArgs e)
+        {
+            window.Content = new AddTheme(window);
+        }
+        private void ToDeleteTheme(object sender, RoutedEventArgs e)
+        {
+            window.Content = new DeleteTheme(window);
+        }
+        private void ToDeleteQuestion(object sender, RoutedEventArgs e)
+        {
+            window.Content = new DeleteQuestion(window);
+        }
+        private void ToAddQuestion(object sender, RoutedEventArgs args)
+        {
+            window.Content = new AddQuestion(window);
+        }
+    }
+}
+
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+using Microsoft.Office.Interop.Word;
+using System.Reflection;
+
+namespace SvyatKP.Design
+{
+    /// <summary>
+    /// Логика взаимодействия для Endgame.xaml
+    /// </summary>
+    public partial class Endgame : System.Windows.Controls.Page
+    {
+        System.Windows.Window win;
+        public Endgame(System.Windows.Window win, int trueAns, int count)
+        {
+            this.win = win;
+            InitializeComponent();
+
+            trueAnswers.Content = trueAns.ToString();
+            allAnswers.Content = count.ToString();
+        }
+        Microsoft.Office.Interop.Word._Application application;
+        Microsoft.Office.Interop.Word._Document document;
+        Object missingObj = System.Reflection.Missing.Value;
+        Object trueObj = true;
+        Object falseObj = false;
+        public void ToMenu(object sender, System.Windows.RoutedEventArgs args)
+        {
+            win.Content = new ThemeMenu(win);
+        }
+
+        private void bt1_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            //создаем обьект приложения word
+            application = new Microsoft.Office.Interop.Word.Application();
+            // создаем путь к файлу
+            Object templatePathObj = "C:/Users/Max_t430/Documents/Настраиваемые шаблоны Office/otchetkp4.dot"; ;
+            try
+            {
+                document = application.Documents.Add(ref templatePathObj, ref missingObj, ref missingObj, ref missingObj);
+            }
+            catch (Exception error)
+            {
+                document.Close(ref falseObj, ref missingObj, ref missingObj);
+                application.Quit(ref missingObj, ref missingObj, ref missingObj);
+                document = null;
+                application = null;
+                throw error;
+            }
+            application.Visible = true;
+            // обьектные строки для Word
+            object strToFindObj = "TL";
+            object replaceStrObj = Convert.ToString(titleLabel.Content);
+            object strToFindObj1 = "Right";
+            object replaceStrObj1 = Convert.ToString(lb1.Content);
+            object strToFindObj2 = "Kolvo";
+            object replaceStrObj2 = Convert.ToString(trueAnswers.Content);
+            object strToFindObj3 = "Vsego";
+            object replaceStrObj3 = Convert.ToString(lb2.Content);
+            object strToFindObj4 = "All";
+            object replaceStrObj4 = Convert.ToString(allAnswers.Content);
+            object strToFindObj5 = "NAME";
+            object replaceStrObj5 = Convert.ToString(tex1.Text);
+            // диапазон документа Word
+            Microsoft.Office.Interop.Word.Range wordRange;
+            //тип поиска и замены
+            object replaceTypeObj;
+            replaceTypeObj = Microsoft.Office.Interop.Word.WdReplace.wdReplaceAll;
+            // обходим все разделы документа
+            for (int i = 1; i <= document.Sections.Count; i++)
+            {
+                // берем всю секцию диапазоном
+                wordRange = document.Sections[i].Range;
+
+                /*
+                Обходим редкий глюк в Find, ПРИЗНАННЫЙ MICROSOFT, метод Execute на некоторых машинах вылетает с ошибкой "Заглушке переданы неправильные данные / Stub received bad data"  Подробности: http://support.microsoft.com/default.aspx?scid=kb;en-us;313104
+                // выполняем метод поиска и  замены обьекта диапазона ворд
+                wordRange.Find.Execute(ref strToFindObj, ref wordMissing, ref wordMissing, ref wordMissing, ref wordMissing, ref wordMissing, ref wordMissing, ref wordMissing, ref wordMissing, ref replaceStrObj, ref replaceTypeObj, ref wordMissing, ref wordMissing, ref wordMissing, ref wordMissing);
+                */
+
+                Microsoft.Office.Interop.Word.Find wordFindObj = wordRange.Find;
+                object[] wordFindParameters = new object[15] { strToFindObj, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, replaceStrObj, replaceTypeObj, missingObj, missingObj, missingObj, missingObj };
+
+                wordFindObj.GetType().InvokeMember("Execute", BindingFlags.InvokeMethod, null, wordFindObj, wordFindParameters);
+
+                Microsoft.Office.Interop.Word.Find wordFindObj1 = wordRange.Find;
+                object[] wordFindParameters1 = new object[15] { strToFindObj1, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, replaceStrObj1, replaceTypeObj, missingObj, missingObj, missingObj, missingObj };
+
+                wordFindObj1.GetType().InvokeMember("Execute", BindingFlags.InvokeMethod, null, wordFindObj1, wordFindParameters1);
+
+                Microsoft.Office.Interop.Word.Find wordFindObj2 = wordRange.Find;
+                object[] wordFindParameters2 = new object[15] { strToFindObj2, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, replaceStrObj2, replaceTypeObj, missingObj, missingObj, missingObj, missingObj };
+
+                wordFindObj2.GetType().InvokeMember("Execute", BindingFlags.InvokeMethod, null, wordFindObj2, wordFindParameters2);
+
+                Microsoft.Office.Interop.Word.Find wordFindObj3 = wordRange.Find;
+                object[] wordFindParameters3 = new object[15] { strToFindObj3, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, replaceStrObj3, replaceTypeObj, missingObj, missingObj, missingObj, missingObj };
+
+                wordFindObj3.GetType().InvokeMember("Execute", BindingFlags.InvokeMethod, null, wordFindObj3, wordFindParameters3);
+
+                Microsoft.Office.Interop.Word.Find wordFindObj4 = wordRange.Find;
+                object[] wordFindParameters4 = new object[15] { strToFindObj4, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, replaceStrObj4, replaceTypeObj, missingObj, missingObj, missingObj, missingObj };
+
+                wordFindObj4.GetType().InvokeMember("Execute", BindingFlags.InvokeMethod, null, wordFindObj4, wordFindParameters4);
+
+                Microsoft.Office.Interop.Word.Find wordFindObj5 = wordRange.Find;
+                object[] wordFindParameters5 = new object[15] { strToFindObj5, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, missingObj, replaceStrObj5, replaceTypeObj, missingObj, missingObj, missingObj, missingObj };
+
+                wordFindObj5.GetType().InvokeMember("Execute", BindingFlags.InvokeMethod, null, wordFindObj5, wordFindParameters5);
+
+            }
+        }
+    }
+    }
+
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace SvyatKP.Design
+{
+    /// <summary>
+    /// Логика взаимодействия для MainMenu.xaml
+    /// </summary>
+    public partial class MainMenu : Page
+    {
+        Window window;
+        public MainMenu(Window window)
+        {
+            this.window = window;
+
+            InitializeComponent();
+            KeyDown += (e, args) =>
+            {
+                if (args.Key == Key.F1)
+                    OpenHelper(null, null);
+            };
+        }
+
+        private void OpenHelper(object sender, RoutedEventArgs e)
+        {
+            var task = new Task(() =>
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start("helper.chm");
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Ошибка со справочником");
+                }
+            });
+            task.Start();
+        }
+        private void ToEditorLogin(object sender, RoutedEventArgs e)
+        {
+            window.Content = new EditorLogin(window);
+        }
+
+        private void ToTheme(object sender, RoutedEventArgs e)
+        {
+            window.Content = new ThemeMenu(window);
+        }
+    }
+}
+
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace SvyatKP.Design
+{
+    /// <summary>
+    /// Логика взаимодействия для ThemeMenu.xaml
+    /// </summary>
+    public partial class ThemeMenu : Page
+    {
+        Window win;
+        public ThemeMenu(Window window)
+        {
+            win = window;
+            InitializeComponent();
+
+            using (var context = new Source.ApplicationContext())
+            {
+                foreach (var x in context.Themes)
+                {
+                    var button = new Button()
+                    {
+                        Width = 250,
+                        Height = 25,
+                        Margin = new Thickness(0, 10, 0, 0),
+                        Content = $"{x.Name}",
+                        HorizontalAlignment = HorizontalAlignment.Center
+                    };
+                    stack.Children.Add(button);
+
+                    button.Click += (e, args) =>
+                    {
+                        using (var ctx = new Source.ApplicationContext())
+                        {
+                            var theme = ctx.Themes.First(t => t.Name == ((e as Button).Content as string));
+                            win.Content = new ThemeShow(win, theme);
+                        }
+                    };
+                }
+            }
+        }
+
+        public void ToMenu(object sender, RoutedEventArgs args)
+        {
+            win.Content = new MainMenu(win);
+        }
+    }
+}
+
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace SvyatKP.Design
+{
+    /// <summary>
+    /// Логика взаимодействия для ThemeShow.xaml
+    /// </summary>
+    public partial class ThemeShow : Page
+    {
+        Window win;
+        Source.Theme theme;
+
+        public ThemeShow(Window win, Source.Theme theme)
+        {
+            this.win = win;
+            this.theme = theme;
+            InitializeComponent();
+
+            titleLabel.Content = theme.Name;
+            description.IsReadOnly = true;
+            description.BorderBrush = Brushes.White;
+            description.TextWrapping = TextWrapping.Wrap;
+            description.AcceptsReturn = true;
+            description.Text = theme.Description;
+
+            using (var context = new Source.ApplicationContext())
+            {
+                var b = new BitmapImage();
+                b.BeginInit();
+                b.UriSource = new Uri(context.Pictures.First(p => p.Id == theme.PictureId).Path);
+                b.EndInit();
+                picture.Source = b;
+            }
+        }
+
+        public void ToMenu(object sender, RoutedEventArgs args)
+        {
+            win.Content = new ThemeMenu(win);
+        }
+        public void ToQuestions(object sender, RoutedEventArgs args)
+        {
+            using (var ctx = new Source.ApplicationContext())
+            {
+                if (ctx.Questions.Count(q => q.ThemeId == theme.Id) == 0)
+                {
+                    var task = new Task(() => MessageBox.Show("Вопросы отсутствуют"));
+                    task.Start();
+                }
+                else
+                {
+                    var questions = new List<Source.Question>();
+                    var rand = new Random();
+                    var list = ctx.Questions.ToList();
+
+                    for (var x = 0; x < rand.Next(5, 10); x++)
+                    {
+                        var it = rand.Next(0, list.Count);
+
+                        if (!questions.Contains(list[it]))
+                            questions.Add(list[it]);
+                    }
+
+                    for (var x = 0; x < list.Count; x++)
+                    {
+                        if (!questions.Contains(list[x]))
+                            questions.Add(list[x]);
+                    }
+
+                    win.Content = new AnswerToQuestion(win, questions, 0, 0);
+                }
+            }
+        }
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+
+namespace SvyatKP.Source
+{
+    public class Theme
+    {
+        public int Id
+        {
+            get;
+            set;
+        }
+        public int PictureId
+        {
+            get;
+            set;
+        }
+        public string Name
+        {
+            get;
+            set;
+        }
+        public string Description
+        {
+            get;
+            set;
+        }
+    }
+
+    public class Question
+    {
+        public int Id
+        {
+            get;
+            set;
+        }
+        public int PictureId
+        {
+            get;
+            set;
+        }
+        public int ThemeId
+        {
+            get;
+            set;
+        }
+        public string Description
+        {
+            get;
+            set;
+        }
+    }
+
+    public class Answer
+    {
+        public int Id
+        {
+            get;
+            set;
+        }
+        public string Description
+        {
+            get;
+            set;
+        }
+        public bool IsTrue
+        {
+            get;
+            set;
+        }
+        public int QuestionId
+        {
+            get;
+            set;
+        }
+    }
+
+    public class Picture
+    {
+        public int Id
+        {
+            get;
+            set;
+        }
+        public string Path
+        {
+            get;
+            set;
+        }
+    }
+
+    public class ApplicationContext : DbContext
+    {
+        public DbSet<Theme> Themes
+        {
+            get;
+            set;
+        }
+        public DbSet<Question> Questions
+        {
+            get;
+            set;
+        }
+        public DbSet<Answer> Answers
+        {
+            get;
+            set;
+        }
+        public DbSet<Picture> Pictures
+        {
+            get;
+            set;
+        }
+
+        public ApplicationContext()
+        {
+            Database.EnsureCreated();
+        }
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Theme>().HasKey(theme => theme.Id);
+            modelBuilder.Entity<Question>().HasKey(question => question.Id);
+            modelBuilder.Entity<Answer>().HasKey(answer => answer.Id);
+            modelBuilder.Entity<Picture>().HasKey(answer => answer.Id);
+        }
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer("Server=MAX-T430;Database=testerRBDB;Integrated Security=True");
+        }
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace SvyatKP
+{
+    /// <summary>
+    /// Логика взаимодействия для MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        public MainWindow()
+        {
+            InitializeComponent();
+
+            Content = new Design.MainMenu(this);
+        }
+    }
+}
+
+ 
